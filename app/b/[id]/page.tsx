@@ -11,12 +11,13 @@ export default function PublicBoard({
 
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
+  const [status, setStatus] = useState('')
 
   const submitFeedback = async () => {
     if (!message.trim()) return
 
     setLoading(true)
+    setStatus('')
 
     try {
       const res = await fetch('/api/feedback', {
@@ -30,12 +31,14 @@ export default function PublicBoard({
 
       const data = await res.json()
 
-      if (!data.error) {
+      if (data.error) {
+        setStatus(data.error)
+      } else {
         setMessage('')
-        setSuccess(true)
+        setStatus('✅ Feedback submitted')
       }
-    } catch (err) {
-      console.error(err)
+    } catch {
+      setStatus('Something went wrong')
     }
 
     setLoading(false)
@@ -55,7 +58,7 @@ export default function PublicBoard({
         {loading ? 'Submitting...' : 'Submit'}
       </button>
 
-      {success && <p style={{ marginTop: 10 }}>✅ Submitted!</p>}
+      {status && <p style={{ marginTop: 10 }}>{status}</p>}
     </div>
   )
 }

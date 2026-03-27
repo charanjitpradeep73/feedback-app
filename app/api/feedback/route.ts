@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+const rateLimitMap = new Map<string, number>()
+
 async function getSupabase() {
   const cookieStore = await cookies()
 
@@ -23,58 +25,58 @@ async function getSupabase() {
   )
 }
 
-// =======================
-// GET (AUTH REQUIRED)
-// =======================
+//
+// ✅ GET — FETCH FEEDBACK
+//
 export async function GET(req: Request) {
   try {
-    const supabase = await getSupabase()
-
-    // 🔥 FORCE AUTH
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json([], { status: 200 })
-    }
-
     const { searchParams } = new URL(req.url)
     const board_id = searchParams.get('board_id')
 
-    let query = supabase
-      .from('feedback')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (board_id) {
-      query = query.eq('board_id', board_id)
+    if (!board_id) {
+      return NextResponse.json([], { status: 200 })
     }
 
-    const { data, error } = await query
+    const supabase = await getSupabase()
+
+    const { data, error } = await supabase
+      .from('feedback')
+      .select('*')
+      .eq('board_id', board_id)
+      .order('created_at', { ascending: false })
 
     if (error) throw error
 
-    return NextResponse.json(data)
+    return NextResponse.json(data || [])
   } catch (err) {
     console.error(err)
-    return NextResponse.json(
-      { error: 'Failed to fetch' },
-      { status: 500 }
-    )
+    return NextResponse.json([], { status: 200 })
   }
 }
 
-// =======================
-// POST (PUBLIC)
-// =======================
+//
+// ✅ POST — INSERT FEEDBACK
+//
 export async function POST(req: Request) {
   try {
+    const ip = req.headers.get('x-forwarded-for') || 'unknown'
+
+    const now = Date.now()
+    const last = rateLimitMap.get(ip) || 0
+
+    if (now - last < 5000) {
+      return NextResponse.json(
+        { error: 'Too many requests. Slow down.' },
+        { status: 429 }
+      )
+    }
+
+    rateLimitMap.set(ip, now)
+
     const supabase = await getSupabase()
 
     const body = await req.json()
-    const message = body?.message?.trim()
-    const board_id = body?.board_id
+    const { message, board_id } = body
 
     if (!message || !board_id) {
       return NextResponse.json(
@@ -83,94 +85,18 @@ export async function POST(req: Request) {
       )
     }
 
-    const { error } = await supabase
-      .from('feedback')
-      .insert([{ message, board_id }])
+    const { error } = await supabase.from('feedback').insert([
+      {
+        message,
+        board_id,
+      },
+    ])
 
     if (error) throw error
 
     return NextResponse.json({ success: true })
   } catch (err) {
     console.error(err)
-    return NextResponse.json(
-      { error: 'Insert failed' },
-      { status: 500 }
-    )
-  }
-}
-
-// =======================
-// DELETE (OWNER ONLY)
-// =======================
-export async function DELETE(req: Request) {
-  try {
-    const supabase = await getSupabase()
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    const body = await req.json()
-    const { id } = body
-
-    const { error } = await supabase
-      .from('feedback')
-      .delete()
-      .eq('id', id)
-
-    if (error) throw error
-
-    return NextResponse.json({ success: true })
-  } catch (err) {
-    console.error(err)
-    return NextResponse.json(
-      { error: 'Delete failed' },
-      { status: 500 }
-    )
-  }
-}
-
-// =======================
-// PUT (OWNER ONLY)
-// =======================
-export async function PUT(req: Request) {
-  try {
-    const supabase = await getSupabase()
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    const body = await req.json()
-    const { id, message } = body
-
-    const { error } = await supabase
-      .from('feedback')
-      .update({ message })
-      .eq('id', id)
-
-    if (error) throw error
-
-    return NextResponse.json({ success: true })
-  } catch (err) {
-    console.error(err)
-    return NextResponse.json(
-      { error: 'Update failed' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Insert failed' }, { status: 500 })
   }
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { supabaseClient } from '@/lib/supabase-client'
 import FeedbackList from '@/components/FeedbackList'
 
 type Board = {
@@ -9,16 +10,52 @@ type Board = {
 }
 
 export default function Dashboard() {
+  const [user, setUser] = useState<any>(null)
   const [boards, setBoards] = useState<Board[]>([])
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
 
+  // 🔐 AUTH CHECK
+  useEffect(() => {
+    const getUser = async () => {
+      const { data } = await supabaseClient.auth.getUser()
+      setUser(data.user)
+    }
+
+    getUser()
+  }, [])
+
+  // 🔐 LOGIN
+  const signIn = async () => {
+    const { error } = await supabaseClient.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) alert(error.message)
+    else window.location.reload()
+  }
+
+  // 🔐 SIGNUP
+  const signUp = async () => {
+    const { error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+    })
+
+    if (error) alert(error.message)
+    else alert('Check your email')
+  }
+
+  // 📦 FETCH BOARDS
   const fetchBoards = async () => {
     const res = await fetch('/api/boards', {
       credentials: 'include',
     })
-    const data = await res.json()
 
+    const data = await res.json()
     setBoards(data || [])
 
     if (data.length > 0 && !selectedBoardId) {
@@ -27,9 +64,10 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
-    fetchBoards()
-  }, [])
+    if (user) fetchBoards()
+  }, [user])
 
+  // ➕ CREATE BOARD
   const createBoard = async () => {
     if (!title.trim()) return alert('Enter title')
 
@@ -56,6 +94,36 @@ export default function Dashboard() {
     alert('Link copied!')
   }
 
+  // 🚫 NOT LOGGED IN → SHOW AUTH
+  if (!user) {
+    return (
+      <div className="container">
+        <h1>Login</h1>
+
+        <input
+          placeholder="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <input
+          type="password"
+          placeholder="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        <div style={{ marginTop: 10 }}>
+          <button onClick={signIn}>Sign In</button>
+          <button onClick={signUp} style={{ marginLeft: 10 }}>
+            Sign Up
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ✅ LOGGED IN UI
   return (
     <div className="container">
       <h1>Dashboard</h1>

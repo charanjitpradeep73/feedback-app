@@ -1,15 +1,16 @@
 'use client'
 
-import Auth from '@/components/Auth'
 import Link from 'next/link'
 
 export default function Home() {
   return (
-    <div>
-      <Auth />
+    <div className="container">
+      <h1>FeedbackBoard</h1>
+      <p>Collect feedback from anyone using a simple link.</p>
 
-      <h2>Go to Dashboard</h2>
-      <Link href="/dashboard">Dashboard</Link>
+      <Link href="/dashboard">
+        <button>Go to Dashboard</button>
+      </Link>
     </div>
   )
 }
