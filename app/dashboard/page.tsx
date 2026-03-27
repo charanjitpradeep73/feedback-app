@@ -1,0 +1,101 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import FeedbackList from '@/components/FeedbackList'
+
+type Board = {
+  id: string
+  title: string
+}
+
+export default function Dashboard() {
+  const [boards, setBoards] = useState<Board[]>([])
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null)
+  const [title, setTitle] = useState('')
+
+  const fetchBoards = async () => {
+    const res = await fetch('/api/boards', {
+      credentials: 'include',
+    })
+    const data = await res.json()
+
+    setBoards(data || [])
+
+    if (data.length > 0 && !selectedBoardId) {
+      setSelectedBoardId(data[0].id)
+    }
+  }
+
+  useEffect(() => {
+    fetchBoards()
+  }, [])
+
+  const createBoard = async () => {
+    if (!title.trim()) return alert('Enter title')
+
+    const res = await fetch('/api/boards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+      credentials: 'include',
+    })
+
+    const data = await res.json()
+
+    if (data.error) {
+      alert(data.error)
+    } else {
+      setTitle('')
+      fetchBoards()
+    }
+  }
+
+  const copyLink = (id: string) => {
+    const url = `${window.location.origin}/b/${id}`
+    navigator.clipboard.writeText(url)
+    alert('Link copied!')
+  }
+
+  return (
+    <div className="container">
+      <h1>Dashboard</h1>
+
+      <div style={{ marginBottom: 20 }}>
+        <input
+          placeholder="New board title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <button onClick={createBoard}>Create</button>
+      </div>
+
+      <h2>Your Boards</h2>
+
+      {boards.map((board) => (
+        <div
+          key={board.id}
+          className={`board-item ${
+            selectedBoardId === board.id ? 'selected' : ''
+          }`}
+        >
+          <span onClick={() => setSelectedBoardId(board.id)}>
+            {board.title}
+          </span>
+
+          <button onClick={() => copyLink(board.id)}>
+            Copy Link
+          </button>
+        </div>
+      ))}
+
+      <hr />
+
+      {selectedBoardId && (
+        <div>
+          <h2>Feedback</h2>
+          <FeedbackList boardId={selectedBoardId} />
+        </div>
+      )}
+    </div>
+  )
+}
